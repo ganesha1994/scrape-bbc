@@ -1,5 +1,5 @@
 import scrapy
-
+from w3lib.html import remove_tags,replace_tags
 
 class BbcSpider(scrapy.Spider):
     name = 'bbc'
@@ -33,4 +33,42 @@ class BbcSpider(scrapy.Spider):
             else:
                 article["publish_time"] = None
 
-            yield article
+            request = scrapy.Request(article["article_url"], callback=self.parse_article, cb_kwargs=article)
+            yield request
+
+    def parse_article(self, response, heading, article_url, summary, label, publish_time):
+        item = dict()
+        article = response.css('article[class*=ArticleWrapper]')
+        if response.css('header.ssrcss-1eqcsb1-HeadingWrapper h1::text'):
+            item['article_title'] = article.css('header.ssrcss-1eqcsb1-HeadingWrapper h1::text').get()
+        elif 'sport' in article_url:  # Need to work upon.
+            item['article_title'] = article.css('h1.qa-story-headline::text').get()
+        else:
+            item['article_title'] = article.css('div.ssrcss-1u9a4pt-HeadingContainer h1::text').get()
+
+        if response.css('span.ssrcss-1if1g9v-MetadataText time'):
+            item['article_publish_time'] = response.css('span.ssrcss-1if1g9v-MetadataText time').attrib['datetime']
+        else:
+            item['article_publish_time'] = None
+
+        item['article_author'] = article.css('div.ssrcss-68pt20-Text-TextContributorName::text').get()
+        item['article_tag'] = response.css('div.ssrcss-84ltp5-Text::text').get()
+        item['article_text'] = self.extract_articles(article)
+        item["heading"] = heading
+        item["article_url"] = article_url
+        item["summary"] = summary
+        item["label"] = label
+        item["publish_time"] = publish_time
+
+        return item
+
+    def extract_articles(self, article):
+        try:
+            paragraph = ""
+
+            for para in article.css('div[class*=RichTextComponentWrapper]'):
+                paragraph += replace_tags(para.get(), " ")
+
+            return paragraph
+        except:
+            return "Not able to extract"

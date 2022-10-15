@@ -6,8 +6,14 @@
 
 # useful for handling different item types with a single interface
 from itemadapter import ItemAdapter
-
+import pymongo
 
 class NewsscraperPipeline:
+    def __init__(self):
+        self.conn = pymongo.MongoClient("<connection string>")
+        db = self.conn["scrapingdata"]
+        self.collection = db['bbc_news']
+
     def process_item(self, item, spider):
+        self.collection.insert_one(dict(item))
         return item

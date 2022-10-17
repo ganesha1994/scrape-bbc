@@ -14,46 +14,69 @@ mongo = PyMongo(app)
 
 @app.route("/")
 def fetch_all():
-    news_article = mongo.db.bbc_news.find(filter={}, projection={'_id': False})
-    return_data = list(news_article)
-    return jsonify(return_data)
+    try:
+        news_article = mongo.db.bbc_news.find_one(filter={}, projection={'_id': False})
+        return_data = list()
+        return_data.append(news_article)
+        return jsonify(return_data)
+    except Exception as e:
+        return {"Error": str(e)}
 
 
 @app.route("/searchfield/<field>/<path:keyword>")
 def search_field(field, keyword):
-    print({field: keyword})
-    news_article = mongo.db.bbc_news.find(filter={field: keyword}, projection={'_id': False})
-    return_data = list(news_article)
-    return jsonify(return_data)
+    try:
+        allowed_field = (
+        "headline", "summary", "article_url", "article_tag", "article_author", "article_publish_time",
+        "article_title")
+        print({field: keyword})
+        if field in allowed_field:
+            news_article = mongo.db.bbc_news.find(filter={field: keyword}, projection={'_id': False})
+            return_data = list(news_article)
+            return jsonify(return_data)
+        else:
+            raise Exception("Not a valid field, Select another field")
+    except Exception as e:
+        return {"Error": str(e)}
 
 
 @app.route("/searchtext/keywords/<path:keyword>")
 def search_text(keyword):
-    print(keyword)
-    news_article = mongo.db.bbc_news.find(filter={"$text": {"$search": keyword}}, projection={'_id': False})
-    return_data = list(news_article)
-    return jsonify(return_data)
+    try:
+        print(keyword)
+        news_article = mongo.db.bbc_news.find(filter={"$text": {"$search": keyword}}, projection={'_id': False})
+        return_data = list(news_article)
+        return jsonify(return_data)
+    except Exception as e:
+        return {"Error": str(e)}
 
 
 @app.route("/searchtext/phrase/<path:phrase>")
 def search_phrase(phrase):
-    keyword = "\"{}\"".format(phrase)
-    print({"$text": {"$search": keyword}})
-    news_article = mongo.db.bbc_news.find(filter={"$text": {"$search": keyword}}, projection={'_id': False})
-    return_data = list(news_article)
-    return jsonify(return_data)
+    try:
+        keyword = "\"{}\"".format(phrase)
+        print({"$text": {"$search": keyword}})
+        news_article = mongo.db.bbc_news.find(filter={"$text": {"$search": keyword}}, projection={'_id': False})
+        return_data = list(news_article)
+        return jsonify(return_data)
+    except Exception as e:
+        return {"Error": str(e)}
 
 
 @app.route("/searcharticle/publish_date/<comparison_op>/<path:date>")
 def search_date(comparison_op, date):
-    comparison_tuple = ("gt", "gte", "lt", "lte")
-    if comparison_op in comparison_tuple:
-        print({"publish_time": {"$" + comparison_op: date}})
-        news_article = mongo.db.bbc_news.find(filter={"publish_time": {"$" + comparison_op: date}}, projection={'_id': False})
-        return_data = list(news_article)
-        return jsonify(return_data)
-    else:
-        return {"Error": "Not a valid operator"}
+    try:
+        comparison_tuple = ("gt", "gte", "lt", "lte")
+        if comparison_op in comparison_tuple:
+            print({"article_publish_time": {"$" + comparison_op: date}})
+            news_article = mongo.db.bbc_news.find(filter={"article_publish_time": {"$" + comparison_op: date}},
+                                                  projection={'_id': False})
+            return_data = list(news_article)
+            return jsonify(return_data)
+        else:
+            raise Exception("Error Not a valid operator")
+    except Exception as e:
+        return {"Error": str(e)}
 
 
 if __name__ == '__main__':

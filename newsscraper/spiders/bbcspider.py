@@ -1,72 +1,102 @@
 import scrapy
-from w3lib.html import remove_tags,replace_tags
+from w3lib.html import remove_tags, replace_tags
+from newsscraper import constants as c
+
 
 class BbcSpider(scrapy.Spider):
     name = 'bbc'
     root_url = 'https://www.bbc.com'
     allowed_domains = ['bbc.com']
-    start_urls = [root_url + '/news']
+    start_urls = [root_url + '/sport' ]#,root_url + '/news'
 
-    def parse(self, response):
-        for promo_articles in response.css('div.gs-c-promo-body'):
+    # def parse(self, response):#News
+    #     for promo_articles in response.css('div.gs-c-promo-body'):
+    #
+    #         promo_articles_heading = promo_articles.css('div a.gs-c-promo-heading')
+    #         article = dict()
+    #
+    #         article[c.d_heading_key] = promo_articles_heading.css('h3.gs-c-promo-heading__title::text').get()
+    #
+    #         url = promo_articles.css('::attr(href)').get()
+    #         if 'http' in url:
+    #             article[c.d_article_url] = url
+    #         else:
+    #             article[c.d_article_url] = self.root_url + url
+    #
+    #         article[c.d_summary_key] = promo_articles.css('div p.gs-c-promo-summary::text').get()
+    #
+    #         if 'sport' in article[c.d_article_url]:
+    #             request = scrapy.Request(article[c.d_article_url], callback=self.parse_sports_article, cb_kwargs=article)
+    #         else:
+    #             request = scrapy.Request(article[c.d_article_url], callback=self.parse_article, cb_kwargs=article)
+    #         yield request
 
-            promo_articles_heading = promo_articles.css('div a.gs-c-promo-heading')
-            article = dict()
+    def parse(self, response):#sports
+        for promo_articles in response.css('div.ssrcss-tq7xfh-PromoContent'):
 
-            article["heading"] = promo_articles_heading.css('h3.gs-c-promo-heading__title::text').get()
-
-            if 'http' in promo_articles_heading.attrib['href']:
-                article["article_url"] = promo_articles_heading.attrib['href']
+            promo_articles_heading = promo_articles.css('div.ssrcss-1f3bvyz-Stack')
+            item = dict()
+            item[c.d_heading_key] = promo_articles_heading.css('p.ssrcss-6arcww-PromoHeadline span::text').get()
+            url = promo_articles_heading.css('a::attr(href)').get()
+            if 'http' in url:
+                item[c.d_article_url] = url
             else:
-                article["article_url"] = self.root_url + promo_articles_heading.attrib['href']
+                item[c.d_article_url] = self.root_url + url
 
-            article["summary"] = promo_articles.css('div p.gs-c-promo-summary::text').get()
+            item[c.d_summary_key] = promo_articles_heading.css('p.ssrcss-1q0x1qg-Paragraph::text').get()
 
-            if promo_articles.css('div ul.gs-o-list-inline li.nw-c-promo-meta a span::text'):
-                article["label"] = promo_articles.css('div ul.gs-o-list-inline li.nw-c-promo-meta a span::text').get()
+            if 'sport' in item[c.d_article_url]:
+                request = scrapy.Request(item[c.d_article_url], callback=self.parse_sports_article, cb_kwargs=dict(item=item))
             else:
-                article["label"] = None
-
-            if promo_articles.css('div ul.gs-o-list-inline li.nw-c-promo-meta span.gs-c-timestamp time'):
-                article["publish_time"] = \
-                    promo_articles.css('div ul.gs-o-list-inline li.nw-c-promo-meta span.gs-c-timestamp time').attrib["datetime"]
-            else:
-                article["publish_time"] = None
-
-            request = scrapy.Request(article["article_url"], callback=self.parse_article, cb_kwargs=article)
+                request = scrapy.Request(item[c.d_article_url], callback=self.parse_article, cb_kwargs=dict(item=item))
             yield request
 
-    def parse_article(self, response, heading, article_url, summary, label, publish_time):
-        item = dict()
-        article = response.css('article[class*=ArticleWrapper]')
-        if response.css('header.ssrcss-1eqcsb1-HeadingWrapper h1::text'):
-            item['article_title'] = article.css('header.ssrcss-1eqcsb1-HeadingWrapper h1::text').get()
-        elif 'sport' in article_url:  # Need to work upon.
-            item['article_title'] = article.css('h1.qa-story-headline::text').get()
-        else:
-            item['article_title'] = article.css('div.ssrcss-1u9a4pt-HeadingContainer h1::text').get()
+    def parse_sports_article(self, response, item):
 
-        if response.css('span.ssrcss-1if1g9v-MetadataText time'):
-            item['article_publish_time'] = response.css('span.ssrcss-1if1g9v-MetadataText time').attrib['datetime']
-        else:
-            item['article_publish_time'] = None
+        sports_article = response.css('div.gel-layout__item')
 
-        item['article_author'] = article.css('div.ssrcss-68pt20-Text-TextContributorName::text').get()
-        item['article_tag'] = response.css('div.ssrcss-84ltp5-Text::text').get()
-        item['article_text'] = self.extract_articles(article)
-        item["heading"] = heading
-        item["article_url"] = article_url
-        item["summary"] = summary
-        item["label"] = label
-        item["publish_time"] = publish_time
+        item[c.d_article_title] = sports_article.css('h1.qa-story-headline::text').get()
+        item[c.d_article_publish_time] = sports_article.css('span.gs-c-timestamp time::attr(datetime)').get()
+
+        item[c.d_article_author] = sports_article.css('span.qa-contributor-name::text').get()
+        item[c.d_article_tag] = sports_article.css('span.gs-u-align-middle a::text').get()
+
+        item[c.d_article_text] = self.extract_sports_articles(sports_article)
 
         return item
 
-    def extract_articles(self, article):
+    def parse_article(self, response, item):
+
+        article = response.css('article[class*=ArticleWrapper]')
+
+        if article.css('header.ssrcss-1eqcsb1-HeadingWrapper h1::text'):
+            item[c.d_article_title] = article.css('header.ssrcss-1eqcsb1-HeadingWrapper h1::text').get()
+        else:
+            item[c.d_article_title] = article.css('div.ssrcss-1u9a4pt-HeadingContainer h1::text').get()
+
+        item[c.d_article_publish_time] = article.css('span.ssrcss-1if1g9v-MetadataText time::attr(datetime)').get()
+        item[c.d_article_author] = article.css('div.ssrcss-68pt20-Text-TextContributorName::text').get()
+        item[c.d_article_tag] = article.css('div.ssrcss-84ltp5-Text::text').get()
+
+        item[c.d_article_text] = self.extract_articles(article)
+        return item
+
+    def extract_articles(self, response):
         try:
             paragraph = ""
 
-            for para in article.css('div[class*=RichTextComponentWrapper]'):
+            for para in response.css('div[class*=RichTextComponentWrapper]'):
+                paragraph += replace_tags(para.get(), " ")
+
+            return paragraph
+        except:
+            return "Not able to extract"
+
+    def extract_sports_articles(self, response):
+        try:
+            paragraph = ""
+
+            for para in response.css('div.qa-story-body'):
                 paragraph += replace_tags(para.get(), " ")
 
             return paragraph
